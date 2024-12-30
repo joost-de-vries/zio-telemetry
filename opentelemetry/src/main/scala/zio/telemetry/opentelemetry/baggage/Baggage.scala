@@ -171,14 +171,10 @@ object Baggage {
           ctxStorage.get
 
         private def modifyBuilder(body: BaggageBuilder => BaggageBuilder)(implicit trace: Trace): URIO[Scope, Context] =
-          Scope.make.flatMap { scope =>
-            scope
-              .use[Any](modifyContext { ctx =>
-                body(Baggaje.fromContext(ctx).toBuilder)
-                  .build()
-                  .storeInContext(ctx)
-              })
-              .ensuring(scope.close(Exit.unit)) // is this run on fiber finalization?
+          modifyContext { ctx =>
+            body(Baggaje.fromContext(ctx).toBuilder)
+              .build()
+              .storeInContext(ctx)
           }
 
         private def modifyContext(body: Context => Context)(implicit trace: Trace): URIO[Scope, Context] =
