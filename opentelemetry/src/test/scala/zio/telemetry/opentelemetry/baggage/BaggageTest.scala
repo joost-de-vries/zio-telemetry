@@ -29,28 +29,34 @@ object BaggageTest extends ZIOSpecDefault {
     suite("operations")(
       test("set/get") {
         ZIO.serviceWithZIO[Baggage] { baggage =>
-          for {
-            _     <- baggage.set("some", "thing")
-            value <- baggage.get("some")
-          } yield assert(value)(isSome(equalTo("thing")))
+          ZIO.scoped[Any] {
+            for {
+              _     <- baggage.set("some", "thing")
+              value <- baggage.get("some")
+            } yield assert(value)(isSome(equalTo("thing")))
+          }
         }
       }.provideLayer(baggageLayer),
       test("set/getAll with metadata") {
         ZIO.serviceWithZIO[Baggage] { baggage =>
-          for {
-            _      <- baggage.setWithMetadata("some", "thing", "meta")
-            result <- baggage.getAllWithMetadata
-          } yield assert(result)(equalTo(Map("some" -> ("thing" -> "meta"))))
+          ZIO.scoped[Any] {
+            for {
+              _      <- baggage.setWithMetadata("some", "thing", "meta")
+              result <- baggage.getAllWithMetadata
+            } yield assert(result)(equalTo(Map("some" -> ("thing" -> "meta"))))
+          }
         }
       }.provideLayer(baggageLayer),
       test("remove") {
         ZIO.serviceWithZIO[Baggage] { baggage =>
-          for {
-            _       <- baggage.set("some", "thing")
-            thing   <- baggage.get("some")
-            _       <- baggage.remove("some")
-            noThing <- baggage.get("some")
-          } yield assert(thing)(isSome(equalTo("thing"))) && assert(noThing)(isNone)
+          ZIO.scoped[Any] {
+            for {
+              _       <- baggage.set("some", "thing")
+              thing   <- baggage.get("some")
+              _       <- baggage.remove("some")
+              noThing <- baggage.get("some")
+            } yield assert(thing)(isSome(equalTo("thing"))) && assert(noThing)(isNone)
+          }
         }
       }.provideLayer(baggageLayer)
     )
@@ -58,7 +64,7 @@ object BaggageTest extends ZIOSpecDefault {
   private def propagationSpec =
     suite("propagation")(
       test("inject/extract") {
-        def setAndInject(): URIO[Baggage, Map[String, String]] =
+        def setAndInject(): URIO[Baggage with Scope, Map[String, String]] =
           ZIO.serviceWithZIO[Baggage] { baggage =>
             val carrier = OutgoingContextCarrier.default()
 
@@ -68,7 +74,7 @@ object BaggageTest extends ZIOSpecDefault {
             } yield carrier.kernel.toMap
           }
 
-        def extractAndGet(extractCarrier: Map[String, String]): URIO[Baggage, Option[String]] =
+        def extractAndGet(extractCarrier: Map[String, String]): URIO[Baggage with Scope, Option[String]] =
           ZIO.serviceWithZIO[Baggage] { baggage =>
             for {
               _     <- baggage.extract(
@@ -80,8 +86,8 @@ object BaggageTest extends ZIOSpecDefault {
           }
 
         for {
-          carrier <- setAndInject().provideLayer(baggageLayer)
-          thing   <- extractAndGet(carrier).provideLayer(baggageLayer)
+          carrier <- setAndInject().provideSome[Scope](baggageLayer)
+          thing   <- extractAndGet(carrier).provideSome[Scope](baggageLayer)
         } yield assert(thing)(isSome(equalTo("thing")))
       }
     )
@@ -146,6 +152,6 @@ object BaggageTest extends ZIOSpecDefault {
           }
         }
       }
-    ).provideLayer(logAnnotatedBaggageLayer)
+    ).provideSome[Scope](logAnnotatedBaggageLayer)
 
 }

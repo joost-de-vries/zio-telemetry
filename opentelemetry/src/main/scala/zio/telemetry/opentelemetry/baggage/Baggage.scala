@@ -25,7 +25,7 @@ trait Baggage { self =>
   def extract[C](
     propagator: BaggagePropagator,
     carrier: IncomingContextCarrier[C]
-  )(implicit trace: Trace): UIO[Unit]
+  )(implicit trace: Trace): URIO[Scope, Unit]
 
   /**
    * Gets the value by a given name.
@@ -86,7 +86,7 @@ trait Baggage { self =>
    * @param trace
    * @return
    */
-  def remove(name: String)(implicit trace: Trace): UIO[Unit]
+  def remove(name: String)(implicit trace: Trace): URIO[Scope, Unit]
 
   /**
    * Sets the new value for a given name.
@@ -96,7 +96,7 @@ trait Baggage { self =>
    * @param trace
    * @return
    */
-  def set(name: String, value: String)(implicit trace: Trace): UIO[Unit]
+  def set(name: String, value: String)(implicit trace: Trace): URIO[Scope, Unit]
 
   /**
    * Sets the new value and metadata for a given name.
@@ -108,7 +108,7 @@ trait Baggage { self =>
    * @param trace
    * @return
    */
-  def setWithMetadata(name: String, value: String, metadata: String)(implicit trace: Trace): UIO[Unit]
+  def setWithMetadata(name: String, value: String, metadata: String)(implicit trace: Trace): URIO[Scope, Unit]
 
 }
 
@@ -137,13 +137,15 @@ object Baggage {
               _.asMap().asScala.toMap.map { case (k, v) => (k, (v.getValue, v.getMetadata.getValue)) }
             )
 
-        override def set(name: String, value: String)(implicit trace: Trace): UIO[Unit] =
+        override def set(name: String, value: String)(implicit trace: Trace): URIO[Scope, Unit] =
           injectLogAnnotations *> modifyBuilder(_.put(name, value)).unit
 
-        override def setWithMetadata(name: String, value: String, metadata: String)(implicit trace: Trace): UIO[Unit] =
+        override def setWithMetadata(name: String, value: String, metadata: String)(implicit
+          trace: Trace
+        ): URIO[Scope, Unit] =
           injectLogAnnotations *> modifyBuilder(_.put(name, value, BaggageEntryMetadata.create(metadata))).unit
 
-        override def remove(name: String)(implicit trace: Trace): UIO[Unit] =
+        override def remove(name: String)(implicit trace: Trace): URIO[Scope, Unit] =
           injectLogAnnotations *> modifyBuilder(_.remove(name)).unit
 
         override def inject[C](
@@ -159,7 +161,7 @@ object Baggage {
         override def extract[C](
           propagator: BaggagePropagator,
           carrier: IncomingContextCarrier[C]
-        )(implicit trace: Trace): UIO[Unit] =
+        )(implicit trace: Trace): URIO[Scope, Unit] =
           injectLogAnnotations *>
             ZIO.uninterruptible {
               modifyContext(ctx => propagator.instance.extract(ctx, carrier.kernel, carrier)).unit
@@ -168,14 +170,18 @@ object Baggage {
         private def getCurrentContext(implicit trace: Trace): UIO[Context] =
           ctxStorage.get
 
-        private def modifyBuilder(body: BaggageBuilder => BaggageBuilder)(implicit trace: Trace): UIO[Context] =
-          modifyContext { ctx =>
-            body(Baggaje.fromContext(ctx).toBuilder)
-              .build()
-              .storeInContext(ctx)
+        private def modifyBuilder(body: BaggageBuilder => BaggageBuilder)(implicit trace: Trace): URIO[Scope, Context] =
+          Scope.make.flatMap { scope =>
+            scope
+              .use[Any](modifyContext { ctx =>
+                body(Baggaje.fromContext(ctx).toBuilder)
+                  .build()
+                  .storeInContext(ctx)
+              })
+              .ensuring(scope.close(Exit.unit)) // is this run on fiber finalization?
           }
 
-        private def modifyContext(body: Context => Context)(implicit trace: Trace): UIO[Context] =
+        private def modifyContext(body: Context => Context)(implicit trace: Trace): URIO[Scope, Context] =
           ctxStorage.updateAndGet(body)
 
         private def injectLogAnnotations(implicit trace: Trace): UIO[Unit] =
@@ -189,10 +195,10 @@ object Baggage {
                 current                <- getCurrentContext
                                             .map(Baggaje.fromContext)
                                             .map(_.asMap().asScala.toMap.map { case (k, v) => (k, (v.getValue, v.getMetadata)) })
-                _                      <- modifyBuilder { builder =>
+                _                      <- ZIO.scoped[Any](modifyBuilder { builder =>
                                             (annotationsWithMetadata ++ current).foreach { case (k, (v, m)) => builder.put(k, v, m) }
                                             builder
-                                          }
+                                          })
               } yield ()
             }
             .unit

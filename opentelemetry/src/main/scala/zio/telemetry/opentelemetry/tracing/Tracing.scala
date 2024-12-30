@@ -568,9 +568,10 @@ object Tracing {
             for {
               ctx        <- extractContext(propagator, carrier)
               updatedCtx <- createChildUnsafe(ctx, spanName, spanKind, attributes, links)
-              oldCtx     <- ctxStorage.getAndSet(updatedCtx)
+              scope      <- Scope.make
+              oldCtx     <- scope.use[Any](ctxStorage.getAndSet(updatedCtx))
               span       <- getCurrentSpanUnsafe
-              finalize    = endCurrentSpan *> ctxStorage.set(oldCtx)
+              finalize    = endCurrentSpan *> scope.use[Any](ctxStorage.set(oldCtx)) *> scope.close(Exit.unit)
             } yield (span, finalize)
 
           override def root[R, E, E1 <: E, A, A1 <: A](
@@ -638,9 +639,10 @@ object Tracing {
             for {
               ctx        <- getCurrentContextUnsafe
               updatedCtx <- createChildUnsafe(ctx, spanName, spanKind, attributes, links)
-              _          <- ctxStorage.set(updatedCtx)
+              scope      <- Scope.make
+              _          <- scope.use[Any](ctxStorage.set(updatedCtx))
               span       <- getCurrentSpanUnsafe
-              finalize    = endCurrentSpan *> ctxStorage.set(ctx)
+              finalize    = endCurrentSpan *> scope.use[Any](ctxStorage.set(ctx)) *> scope.close(Exit.unit)
             } yield (span, finalize)
 
           override def scopedEffect[A](effect: => A)(implicit trace: Trace): Task[A] =

@@ -1,5 +1,6 @@
 package zio.telemetry.opentelemetry.context
 
+import io.opentelemetry.context.{Scope => OtelScope}
 import io.opentelemetry.context.Context
 import zio._
 
@@ -10,11 +11,11 @@ sealed trait ContextStorage {
 
   def get(implicit trace: Trace): UIO[Context]
 
-  def set(context: Context)(implicit trace: Trace): UIO[Unit]
+  def set(context: Context)(implicit trace: Trace): URIO[Scope, Unit]
 
-  def getAndSet(context: Context)(implicit trace: Trace): UIO[Context]
+  def getAndSet(context: Context)(implicit trace: Trace): URIO[Scope, Context]
 
-  def updateAndGet(f: Context => Context)(implicit trace: Trace): UIO[Context]
+  def updateAndGet(f: Context => Context)(implicit trace: Trace): URIO[Scope, Context]
 
   def locally[R, E, A](context: Context)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A]
 
@@ -59,29 +60,31 @@ private[opentelemetry] object ContextStorage {
     override def get(implicit trace: Trace): UIO[Context] =
       ZIO.succeed(Context.current())
 
-    override def set(context: Context)(implicit trace: Trace): UIO[Unit] =
-      ZIO.succeed(context.makeCurrent()).unit
+    override def set(context: Context)(implicit trace: Trace): URIO[Scope, Unit] =
+      makeCurrentScoped(context).unit
 
-    override def getAndSet(context: Context)(implicit trace: Trace): UIO[Context] =
-      ZIO.succeed {
-        val old = Context.current()
-        val _   = context.makeCurrent()
-        old
-      }.uninterruptible
+    private def makeCurrentScoped(context: Context): URIO[Scope, OtelScope] =
+      ZIO.fromAutoCloseable(ZIO.succeed(context.makeCurrent()))
 
-    override def updateAndGet(f: Context => Context)(implicit trace: Trace): UIO[Context] =
-      ZIO.succeed {
-        val updated = f(Context.current())
-        val _       = updated.makeCurrent()
-        updated
+    override def getAndSet(context: Context)(implicit trace: Trace): URIO[Scope, Context] =
+      (get <* makeCurrentScoped(context)).uninterruptible
+
+    override def updateAndGet(f: Context => Context)(implicit trace: Trace): URIO[Scope, Context] =
+      get.flatMap { old =>
+        val updated = f(old)
+        makeCurrentScoped(updated).as(updated)
       }.uninterruptible
 
     override def locally[R, E, A](context: Context)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-      ZIO.acquireReleaseWith(get <* set(context))(set)(_ => zio)
+      ZIO.scoped[R] {
+        for {
+          _      <- locallyScoped(context)
+          result <- zio
+        } yield result
+      }
 
     override def locallyScoped(context: Context)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
-      ZIO.acquireRelease(get <* set(context))(set).unit
-
+      ZIO.acquireRelease(get <* set(context))(old => set(old)).unit
   }
 
   /**

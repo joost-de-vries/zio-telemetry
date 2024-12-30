@@ -18,10 +18,10 @@ case class ProxyHttpApp(client: BackendClient, tracing: Tracing, baggage: Baggag
 
   val routes: HttpApp[Any, Nothing] =
     Http.collectZIO { case Method.GET -> _ / "statuses" =>
-      statuses @@ root("/statuses", SpanKind.SERVER, statusMapper = statusMapper)
+      ZIO.scoped(statuses @@ root("/statuses", SpanKind.SERVER, statusMapper = statusMapper))
     }
 
-  def statuses: UIO[Response] = {
+  def statuses: URIO[Scope, Response] = {
     val carrier = OutgoingContextCarrier.default()
 
     for {
