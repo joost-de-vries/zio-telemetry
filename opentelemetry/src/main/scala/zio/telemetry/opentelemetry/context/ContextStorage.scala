@@ -1,7 +1,6 @@
 package zio.telemetry.opentelemetry.context
 
-import io.opentelemetry.context.{Scope => OtelScope}
-import io.opentelemetry.context.Context
+import io.opentelemetry.context.{Context, Scope => OtelScope}
 import zio._
 
 /**
