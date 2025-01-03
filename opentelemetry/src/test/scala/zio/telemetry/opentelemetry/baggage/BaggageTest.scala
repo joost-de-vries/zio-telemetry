@@ -80,8 +80,8 @@ object BaggageTest extends ZIOSpecDefault {
           }
 
         for {
-          carrier <- setAndInject().provideSome[Scope](baggageLayer)
-          thing   <- extractAndGet(carrier).provideSome[Scope](baggageLayer)
+          carrier <- setAndInject().provideLayer(baggageLayer)
+          thing   <- extractAndGet(carrier).provideLayer(baggageLayer)
         } yield assert(thing)(isSome(equalTo("thing")))
       }
     )
