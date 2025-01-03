@@ -29,34 +29,28 @@ object BaggageTest extends ZIOSpecDefault {
     suite("operations")(
       test("set/get") {
         ZIO.serviceWithZIO[Baggage] { baggage =>
-          ZIO.scoped[Any] {
-            for {
-              _     <- baggage.set("some", "thing")
-              value <- baggage.get("some")
-            } yield assert(value)(isSome(equalTo("thing")))
-          }
+          for {
+            _     <- baggage.set("some", "thing")
+            value <- baggage.get("some")
+          } yield assert(value)(isSome(equalTo("thing")))
         }
       }.provideLayer(baggageLayer),
       test("set/getAll with metadata") {
         ZIO.serviceWithZIO[Baggage] { baggage =>
-          ZIO.scoped[Any] {
-            for {
-              _      <- baggage.setWithMetadata("some", "thing", "meta")
-              result <- baggage.getAllWithMetadata
-            } yield assert(result)(equalTo(Map("some" -> ("thing" -> "meta"))))
-          }
+          for {
+            _      <- baggage.setWithMetadata("some", "thing", "meta")
+            result <- baggage.getAllWithMetadata
+          } yield assert(result)(equalTo(Map("some" -> ("thing" -> "meta"))))
         }
       }.provideLayer(baggageLayer),
       test("remove") {
         ZIO.serviceWithZIO[Baggage] { baggage =>
-          ZIO.scoped[Any] {
-            for {
-              _       <- baggage.set("some", "thing")
-              thing   <- baggage.get("some")
-              _       <- baggage.remove("some")
-              noThing <- baggage.get("some")
-            } yield assert(thing)(isSome(equalTo("thing"))) && assert(noThing)(isNone)
-          }
+          for {
+            _       <- baggage.set("some", "thing")
+            thing   <- baggage.get("some")
+            _       <- baggage.remove("some")
+            noThing <- baggage.get("some")
+          } yield assert(thing)(isSome(equalTo("thing"))) && assert(noThing)(isNone)
         }
       }.provideLayer(baggageLayer)
     )

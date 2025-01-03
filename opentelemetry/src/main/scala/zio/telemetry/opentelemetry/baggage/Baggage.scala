@@ -28,8 +28,8 @@ trait Baggage { self =>
   )(implicit trace: Trace): UIO[Unit]
 
   /**
-   * Extracts the baggage data from carrier `C` into the current context.
-   * The context will be scoped to the provided scope.
+   * Extracts the baggage data from carrier `C` into the current context. The context will be scoped to the provided
+   * scope.
    *
    * @param propagator
    *   implementation of [[zio.telemetry.opentelemetry.baggage.propagation.BaggagePropagator]]
@@ -41,9 +41,10 @@ trait Baggage { self =>
    * @return
    */
   def extractScoped[C](
-                  propagator: BaggagePropagator,
-                  carrier: IncomingContextCarrier[C]
-                )(implicit trace: Trace): URIO[Scope, Unit]
+    propagator: BaggagePropagator,
+    carrier: IncomingContextCarrier[C]
+  )(implicit trace: Trace): URIO[Scope, Unit]
+
   /**
    * Gets the value by a given name.
    *
@@ -106,8 +107,7 @@ trait Baggage { self =>
   def remove(name: String)(implicit trace: Trace): UIO[Unit]
 
   /**
-   * Removes the name/value by a given name.
-   * The context will be scoped to the provided scope.
+   * Removes the name/value by a given name. The context will be scoped to the provided scope.
    *
    * @param name
    * @param trace
@@ -126,8 +126,7 @@ trait Baggage { self =>
   def set(name: String, value: String)(implicit trace: Trace): UIO[Unit]
 
   /**
-   * Sets the new value for a given name.
-   * The context will be scoped to the provided scope.
+   * Sets the new value for a given name. The context will be scoped to the provided scope.
    *
    * @param name
    * @param value
@@ -149,8 +148,7 @@ trait Baggage { self =>
   def setWithMetadata(name: String, value: String, metadata: String)(implicit trace: Trace): UIO[Unit]
 
   /**
-   * Sets the new value and metadata for a given name.
-   * The context will be scoped to the provided scope.
+   * Sets the new value and metadata for a given name. The context will be scoped to the provided scope.
    *
    * @param name
    * @param value
@@ -193,8 +191,7 @@ object Baggage {
         override def setScoped(name: String, value: String)(implicit trace: Trace): URIO[Scope, Unit] =
           injectLogAnnotations *> modifyBuilder(_.put(name, value)).unit
 
-        override def setWithMetadata(name: String, value: String, metadata: String)(implicit trace: Trace
-        ): UIO[Unit] =
+        override def setWithMetadata(name: String, value: String, metadata: String)(implicit trace: Trace): UIO[Unit] =
           ZIO.scoped[Any](setWithMetadataScoped(name, value, metadata))
 
         override def setWithMetadataScoped(name: String, value: String, metadata: String)(implicit
@@ -219,9 +216,9 @@ object Baggage {
           } yield ()
 
         override def extract[C](
-                                 propagator: BaggagePropagator,
-                                 carrier: IncomingContextCarrier[C]
-                               )(implicit trace: Trace): UIO[Unit] =
+          propagator: BaggagePropagator,
+          carrier: IncomingContextCarrier[C]
+        )(implicit trace: Trace): UIO[Unit] =
           ZIO.scoped[Any](extractScoped(propagator, carrier))
 
         override def extractScoped[C](
