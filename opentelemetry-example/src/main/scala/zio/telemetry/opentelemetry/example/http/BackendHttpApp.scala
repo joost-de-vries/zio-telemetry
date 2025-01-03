@@ -33,8 +33,8 @@ case class BackendHttpApp(tracing: Tracing, baggage: Baggage, statusRequestsCoun
     Http.collectZIO { case request @ Method.GET -> _ / "status" =>
       val carrier = headersCarrier(request.headers)
 
-      ZIO.scoped((baggage.extract(BaggagePropagator.default, carrier) *> status) @@
-        extractSpan(TraceContextPropagator.default, carrier, "/status", SpanKind.SERVER))
+      (baggage.extract(BaggagePropagator.default, carrier) *> status) @@
+        extractSpan(TraceContextPropagator.default, carrier, "/status", SpanKind.SERVER)
     }
 
   def status: UIO[Response] =
