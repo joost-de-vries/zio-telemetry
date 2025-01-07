@@ -1,8 +1,8 @@
 package zio.telemetry.opentelemetry.context
 
 import io.opentelemetry.context.{Context, ContextKey}
-import zio.{Scope, ZIO}
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assertTrue}
+import zio.{Scope, ZIO}
 
 object ContextStorageTest extends ZIOSpecDefault {
   override def spec: Spec[TestEnvironment with Scope, Any] =
