@@ -23,11 +23,12 @@ object ContextStorageTest extends ZIOSpecDefault {
         },
         test("getAndSet should restore context after scope") {
           for {
-            contextStorage            <- ZIO.service[ContextStorage]
-            before                     = Context.current()
-            updated                    = before.`with`(key, "local value")
-            (likeBefore, withinScope) <- ZIO.scoped[Any](contextStorage.getAndSet(updated) <*> contextStorage.get)
-            after                      = Context.current()
+            contextStorage           <- ZIO.service[ContextStorage]
+            before                    = Context.current()
+            updated                   = before.`with`(key, "local value")
+            result                   <- ZIO.scoped[Any](contextStorage.getAndSet(updated) <*> contextStorage.get)
+            (likeBefore, withinScope) = result
+            after                     = Context.current()
           } yield assertTrue(
             likeBefore == before,
             withinScope.get(key) == "local value",
@@ -37,13 +38,14 @@ object ContextStorageTest extends ZIOSpecDefault {
         },
         test("updateAndGet should restore context after scope") {
           for {
-            contextStorage               <- ZIO.service[ContextStorage]
-            before                        = Context.current()
-            (updated, afterUpdateAndGet) <-
+            contextStorage              <- ZIO.service[ContextStorage]
+            before                       = Context.current()
+            result                      <-
               ZIO.scoped[Any] {
                 contextStorage.updateAndGet(c => c.`with`(key, "local value")) <*> contextStorage.get
               }
-            after                         = Context.current()
+            (updated, afterUpdateAndGet) = result
+            after                        = Context.current()
           } yield assertTrue(
             updated.get(key) == "local value",
             updated == afterUpdateAndGet,
